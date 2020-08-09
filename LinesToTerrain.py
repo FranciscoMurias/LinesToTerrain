@@ -85,7 +85,7 @@ class Paint(object):
             modelOptions.extend(dirnames)
             break
 
-        self.selectedModel.set('Mountains') # set the default option
+        self.selectedModel.set(modelOptions[0]) # set the default option
         
         self.modelMenu = OptionMenu(self.root, self.selectedModel, *modelOptions)
         self.modelMenu.grid(row=0, column=1530)
@@ -244,7 +244,7 @@ class MLModel(object):
                 break
             if MLEvent.is_set():
                 
-                self.processModel("data/in.png", "data/out.png", "Models/Mountains")
+                self.processModel("data/in.png", "data/out.png", "Models/"+model)
                 
                 MLEvent.clear()
             sleep(1)
