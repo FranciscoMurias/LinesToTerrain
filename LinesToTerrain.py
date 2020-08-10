@@ -7,6 +7,8 @@ from subprocess import call
 
 import numpy as np
 import imageio
+imageio.plugins.freeimage.download()
+
 #import tensorflow as tf
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
@@ -64,10 +66,10 @@ class Paint(object):
         self.valley_button = Button(self.root, text='▼', foreground="blue", width=2, height=1, command=self.use_valley)
         self.valley_button.grid(row=0, column=6)
 
-        self.eraser_button = Button(self.root, text='⌫', width=2, height=1, command=self.use_eraser)
+        self.eraser_button = Button(self.root, text='⌫', foreground="#e3a6d1", width=2, height=1, command=self.use_eraser)
         self.eraser_button.grid(row=0, column=7)
 
-        self.clear_button = Button(self.root, text='⌧', width=2, height=1, command=self.clear)
+        self.clear_button = Button(self.root, text='❌', foreground="red", width=2, height=1, command=self.clear)
         self.clear_button.grid(row=0, column=8)
 
         self.choose_size_button = Scale(self.root, from_=1, to=10, orient=HORIZONTAL, sliderlength=25, width= 13, bd=0, troughcolor="#111", resolution=0.25, font=("DejaVu Sans", 8))
@@ -242,12 +244,19 @@ class MLModel(object):
         gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
         return gray
 
+    def scale_to_range(self, x, min_val, max_val, a=-1, b=1):
+        return ((b - a) * (x - min_val)) / (max_val - min_val) + a
+
     def runML(self):
         while True:
             if closeEvent.is_set():
                 break
             if MLEvent.is_set():
                 self.processModel("data/in.png", "data/out.png", "Models/"+model)
+                im = imageio.imread("data/out.png", format='PNG-FI')
+                grayscale = self.rgb2gray(im)
+                #level = self.scale_to_range(grayscale, 5140, 60395, 0, 2**16-1)
+                imageio.imwrite("data/out2.png", grayscale.astype(np.uint16))
                 MLEvent.clear()
             sleep(1)
 
