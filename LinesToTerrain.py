@@ -46,8 +46,6 @@ MLEvent = Event()
 refreshEvent = Event()
 resetEvent = Event()
 
-model = "Mountains"
-
 # Main Drawing UI Here
 class Paint(object):
 
@@ -86,6 +84,8 @@ class Paint(object):
             break
 
         self.selectedModel.set(modelOptions[0]) # set the default option
+        global model
+        model = self.selectedModel.get()
         
         self.modelMenu = OptionMenu(self.root, self.selectedModel, *modelOptions)
         self.modelMenu.grid(row=0, column=1530)
@@ -234,18 +234,20 @@ class MLModel(object):
         b64data += "=" * (-len(b64data) % 4)
         output_data = base64.urlsafe_b64decode(b64data.encode("ascii"))
 
-        print(output_data[:10])
         with open(output_file, "wb") as f:
             f.write(output_data)
+    
+    def rgb2gray(self, rgb):
+        r, g, b = rgb[:,:,0], rgb[:,:,1], rgb[:,:,2]
+        gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+        return gray
 
     def runML(self):
         while True:
             if closeEvent.is_set():
                 break
             if MLEvent.is_set():
-                
                 self.processModel("data/in.png", "data/out.png", "Models/"+model)
-                
                 MLEvent.clear()
             sleep(1)
 
