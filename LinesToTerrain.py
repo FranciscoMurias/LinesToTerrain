@@ -1,12 +1,8 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
-from subprocess import call
 
 import numpy as np
 import imageio
+import cv2
 imageio.plugins.freeimage.download()
 
 #import tensorflow as tf
@@ -22,7 +18,7 @@ import moderngl
 import moderngl_window as mglw
 from moderngl_window.scene.camera import KeyboardCamera, OrbitCamera
 
-from PIL import Image, ImageTk, ImageDraw, ImageGrab
+from PIL import ImageGrab
 
 from tkinter import Tk, Button, Canvas, Scale, OptionMenu, StringVar, PhotoImage, HORIZONTAL, NW, ROUND, TRUE, RAISED, SUNKEN
 #from tkinter import *
@@ -37,8 +33,17 @@ from time import sleep
 def terrain(size):
     vertices = np.dstack(np.mgrid[0:size, 0:size][::-1]) / size
     temp = np.dstack([np.arange(0, size * size - size), np.arange(size, size * size)])
-    index = np.pad(temp.reshape(size - 1, 2 * size), [[0, 0], [0, 1]], 'constant', constant_values=-1)
+    index = np.pad(temp.reshape(size - 1, 2 * size), [[0, 0], [0, 1]], "constant", constant_values=-1)
     return vertices, index
+
+def rgb2gray(rgb):
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+    return gray
+
+def scale_to_range(x, min_val, max_val, a=-1, b=1):
+    return ((b - a) * (x - min_val)) / (max_val - min_val) + a
+
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,7 +71,7 @@ class Paint(object):
         self.valley_button = Button(self.root, text='▼', foreground="blue", width=2, height=1, command=self.use_valley)
         self.valley_button.grid(row=0, column=6)
 
-        self.eraser_button = Button(self.root, text='⌫', foreground="#e3a6d1", width=2, height=1, command=self.use_eraser)
+        self.eraser_button = Button(self.root, text='⏹', foreground="#e3a6d1", width=2, height=1, command=self.use_eraser)
         self.eraser_button.grid(row=0, column=7)
 
         self.clear_button = Button(self.root, text='❌', foreground="red", width=2, height=1, command=self.clear)
@@ -230,33 +235,25 @@ class MLModel(object):
         
         output_instance = dict(output=output_value.decode("ascii"), key="0")
 
-        data = output_instance["output"]
-
         b64data = output_instance["output"]
         b64data += "=" * (-len(b64data) % 4)
         output_data = base64.urlsafe_b64decode(b64data.encode("ascii"))
 
         with open(output_file, "wb") as f:
             f.write(output_data)
-    
-    def rgb2gray(self, rgb):
-        r, g, b = rgb[:,:,0], rgb[:,:,1], rgb[:,:,2]
-        gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
-        return gray
-
-    def scale_to_range(self, x, min_val, max_val, a=-1, b=1):
-        return ((b - a) * (x - min_val)) / (max_val - min_val) + a
 
     def runML(self):
         while True:
             if closeEvent.is_set():
                 break
             if MLEvent.is_set():
-                self.processModel("data/in.png", "data/out.png", "Models/"+model)
-                im = imageio.imread("data/out.png", format='PNG-FI')
-                grayscale = self.rgb2gray(im)
-                #level = self.scale_to_range(grayscale, 5140, 60395, 0, 2**16-1)
-                imageio.imwrite("data/out2.png", grayscale.astype(np.uint16))
+                self.processModel("data/in.png", "data/out.png", "Models/" + model)
+                im = imageio.imread("data/out.png", format="PNG-FI")
+                grayscale = rgb2gray(im)
+                level = scale_to_range(grayscale, 5140, 60395, 0, 2 ** 16 - 1)
+                blur1 = cv2.blur(level, (1, 1))
+                blur2 = cv2.blur(blur1, (3, 3))
+                imageio.imwrite("data/out.png", blur2.astype(np.uint16))
                 MLEvent.clear()
             sleep(1)
 
@@ -305,7 +302,7 @@ class WireframeTerrain(mglw.WindowConfig):
                 out float map_height;
 
                 void main() {
-                    float height = texture(Heightmap, in_vert.xy).r - 0.3;
+                    float height = texture(Heightmap, in_vert.yx).r - 0.3;
                     map_height = height + 0.3;
                     gl_Position = Mvp * vec4(in_vert.xy - 0.5, height, 1.0);
                 }
@@ -394,11 +391,10 @@ class WireframeTerrain(mglw.WindowConfig):
         #to update texture every frame
         if refreshEvent.is_set():
             print("load texture")
-            self.texture = self.load_texture_2d("out.png")
-            self.imgmin = (np.amin(np.array(imageio.imread('data/out.png')))/255.0)
-            print(self.imgmin)
-            self.imgmax = (np.amax(np.array(imageio.imread('data/out.png')))/255.0)
-            print(self.imgmax)
+            image = imageio.imread("data/out.png", format="PNG-FI") / (2 ** 16 - 1)
+            self.texture = self.ctx.texture((512, 512), data=image.astype("f4"), components=1, dtype="f4")
+            self.imgmin = np.amin(image)
+            self.imgmax = np.amax(image)
             refreshEvent.clear()
 
         #clear preview
