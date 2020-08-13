@@ -41,9 +41,14 @@ def rgb2gray(rgb):
     gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
     return gray
 
-def scale_to_range(x, min_val, max_val, a=-1, b=1):
-    return ((b - a) * (x - min_val)) / (max_val - min_val) + a
+def levels(img, inBlack, inWhite, outBlack, outWhite):
+    _max = 2 ** 16 - 1  # max 16 bit value, equivalent to 255 for 8bit images
+    inGamma = np.array([1.0], dtype=np.float32)
 
+    img = np.clip((img - inBlack) / (inWhite - inBlack), 0, _max)
+    img = (img ** (1 / inGamma)) * (outWhite - outBlack) + outBlack
+    img = np.clip(img, 0, _max)
+    return img
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -250,7 +255,10 @@ class MLModel(object):
                 self.processModel("data/in.png", "data/out.png", "Models/" + model)
                 im = imageio.imread("data/out.png", format="PNG-FI")
                 grayscale = rgb2gray(im)
-                level = scale_to_range(grayscale, 5140, 60395, 0, 2 ** 16 - 1)
+                # use `photoshop_level / 255 * (2**16 - 1)` to calculate the input levels in 16 bit
+                # --> 20 / 255 * (2**16 - 1) = 5140
+                # --> 235 / 255 * (2**16 - 1) = 60395
+                level = levels(grayscale, 5140, 60395, 0, 2 ** 16 - 1)
                 blur1 = cv2.blur(level, (1, 1))
                 blur2 = cv2.blur(blur1, (3, 3))
                 imageio.imwrite("data/out.png", blur2.astype(np.uint16))
