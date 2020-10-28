@@ -1,0 +1,6 @@
+numpy
+imageio
+opencv-python
+pyrr
+moderngl
+moderngl_window
